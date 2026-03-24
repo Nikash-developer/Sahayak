@@ -1,0 +1,86 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+        (request.auth.token.email == "nikashjaipal2008@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    // ===============================================================
+    // Domain Validators
+    // ===============================================================
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
+             data.uid == request.auth.uid &&
+             (!('fullName' in data) || (data.fullName is string && data.fullName.size() < 100)) &&
+             isValidEmail(data.email) &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidHazard(data) {
+      return data.keys().hasAll(['id', 'reporterUid', 'type', 'location', 'status', 'createdAt']) &&
+             data.reporterUid == request.auth.uid &&
+             data.type is string &&
+             data.status in ['pending', 'in-progress', 'resolved'] &&
+             isValidDateString(data.createdAt);
+    }
+
+    function isValidAssistanceRequest(data) {
+      return data.keys().hasAll(['id', 'userUid', 'type', 'location', 'status', 'createdAt']) &&
+             (data.userUid == request.auth.uid || data.volunteerUid == request.auth.uid) &&
+             data.status in ['pending', 'accepted', 'completed', 'cancelled'] &&
+             isValidDateString(data.createdAt);
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+    }
+
+    match /hazards/{hazardId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isValidHazard(request.resource.data);
+      allow update: if (isAuthenticated() && (resource.data.reporterUid == request.auth.uid || isAdmin())) && isValidHazard(request.resource.data);
+      allow delete: if isAdmin();
+    }
+
+    match /assistance_requests/{requestId} {
+      allow read: if isAuthenticated() && (resource.data.userUid == request.auth.uid || resource.data.volunteerUid == request.auth.uid || isAdmin() || (resource.data.status == 'pending'));
+      allow create: if isAuthenticated() && isValidAssistanceRequest(request.resource.data);
+      allow update: if isAuthenticated() && isValidAssistanceRequest(request.resource.data);
+    }
+  }
+}

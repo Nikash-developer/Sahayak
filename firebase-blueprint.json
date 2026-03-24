@@ -1,0 +1,97 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Stores user personalization data and accessibility preferences.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "description": "The unique identifier for the user." },
+        "fullName": { "type": "string", "description": "The user's full name." },
+        "email": { "type": "string", "format": "email", "description": "The user's email address." },
+        "disabilities": { "type": "array", "items": { "type": "string" }, "description": "List of disability types." },
+        "mobilityAids": { "type": "array", "items": { "type": "string" }, "description": "List of mobility aids used." },
+        "emergencyContactName": { "type": "string", "description": "Name of the emergency contact." },
+        "emergencyContactPhone": { "type": "string", "description": "Phone number of the emergency contact." },
+        "preferences": {
+          "type": "object",
+          "properties": {
+            "voiceAlerts": { "type": "boolean" },
+            "vibrationFeedback": { "type": "boolean" },
+            "highContrast": { "type": "boolean" },
+            "simplifiedMode": { "type": "boolean" },
+            "language": { "type": "string" }
+          }
+        },
+        "isVolunteer": { "type": "boolean", "description": "Whether the user is a volunteer." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "When the profile was created." }
+      },
+      "required": ["uid", "fullName", "email", "createdAt"]
+    },
+    "HazardReport": {
+      "title": "HazardReport",
+      "description": "Stores real-time hazard reports submitted by users.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "reporterUid": { "type": "string" },
+        "type": { "type": "string" },
+        "description": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "address": { "type": "string" }
+          }
+        },
+        "impact": {
+          "type": "object",
+          "properties": {
+            "affectsWheelchairs": { "type": "boolean" },
+            "visualImpairmentRisk": { "type": "boolean" },
+            "delayedRoutes": { "type": "number" }
+          }
+        },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "resolved"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "reporterUid", "type", "location", "status", "createdAt"]
+    },
+    "AssistanceRequest": {
+      "title": "AssistanceRequest",
+      "description": "Stores requests for on-demand human assistance.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userUid": { "type": "string" },
+        "type": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" },
+            "address": { "type": "string" }
+          }
+        },
+        "status": { "type": "string", "enum": ["pending", "accepted", "completed", "cancelled"] },
+        "volunteerUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "userUid", "type", "location", "status", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Collection of user profiles."
+    },
+    "/hazards/{hazardId}": {
+      "schema": "HazardReport",
+      "description": "Collection of hazard reports."
+    },
+    "/assistance_requests/{requestId}": {
+      "schema": "AssistanceRequest",
+      "description": "Collection of assistance requests."
+    }
+  }
+}

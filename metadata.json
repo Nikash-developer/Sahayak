@@ -1,0 +1,9 @@
+{
+  "name": "Sahayak - AI-Powered Smart Navigation & Assistance System",
+  "description": "An AI-powered smart navigation and assistance platform designed for differently-abled and elderly users, providing adaptive route planning, hazard alerts, and emergency assistance.",
+  "requestFramePermissions": [
+    "geolocation",
+    "camera",
+    "microphone"
+  ]
+}

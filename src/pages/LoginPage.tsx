@@ -4,16 +4,15 @@ import React, { useState, useEffect } from 'react';
 import { 
   signInWithEmailAndPassword, 
   createUserWithEmailAndPassword,
-  GoogleAuthProvider, 
-  signInWithPopup,
   updateProfile
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
+import { useAuth } from '../context/AuthContext';
 import { 
   Eye, EyeOff, Globe, Bell, User as UserIcon, 
   Accessibility, Type, Mic, Contrast, Sparkles,
-  ChevronDown, Check, X, ArrowRight, Phone, User,
+  ChevronDown, Check, X, ArrowRight, ArrowLeft, Phone, User,
   HelpCircle
 } from 'lucide-react';
 import { toast } from 'sonner';
@@ -22,6 +21,7 @@ import { cn } from '../lib/utils';
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { login } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -75,9 +75,8 @@ export default function LoginPage() {
   };
 
   const handleGoogleLogin = async () => {
-    const provider = new GoogleAuthProvider();
     try {
-      const result = await signInWithPopup(auth, provider);
+      const result = await login();
       const userDoc = await getDoc(doc(db, 'users', result.user.uid));
       
       toast.success('Welcome back!');
@@ -92,11 +91,18 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-surface font-body text-on-surface antialiased flex flex-col">
+    <div className="bg-surface font-body text-on-surface antialiased flex flex-col">
       {/* Top Navigation */}
       <header className="fixed top-0 w-full z-50 bg-[#FDFCFB]/85 backdrop-blur-xl border-b border-on-surface/5 shadow-sm transition-all duration-300">
         <div className="flex items-center justify-between px-12 py-4 w-full">
           <div className="flex items-center gap-10">
+            <button 
+              onClick={() => navigate('/')}
+              className="flex items-center gap-2 text-[#006D6D] hover:text-[#005353] transition-colors font-bold group"
+            >
+              <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+              <span className="hidden sm:inline">Back</span>
+            </button>
             <div 
               onClick={() => navigate('/')}
               className="flex items-center gap-2 cursor-pointer group"

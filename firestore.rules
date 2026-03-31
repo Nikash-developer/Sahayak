@@ -1,11 +1,42 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: users
+    // Document ID: {userId}
+    // Fields:
+    //   - uid: string (required)
+    //   - email: string (required)
+    //   - displayName: string (optional)
+    //   - photoURL: string (optional)
+    //   - role: string (required, 'user' | 'admin')
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: hazards
+    // Document ID: {hazardId}
+    // Fields:
+    //   - id: string (required)
+    //   - type: string (required, enum)
+    //   - description: string (required, < 1000 chars)
+    //   - severity: string (required, 'low' | 'medium' | 'high')
+    //   - location: map (required)
+    //     - latitude: number
+    //     - longitude: number
+    //     - address: string
+    //   - userId: string (required)
+    //   - createdAt: timestamp (required)
+    //   - imageUrl: string (optional)
+    //   - videoUrl: string (optional)
+    //
+    // ===============================================================
 
     // ===============================================================
     // Helper Functions
     // ===============================================================
-
+    
     function isAuthenticated() {
       return request.auth != null;
     }
@@ -14,50 +45,31 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    function isDocOwner() {
-      return isAuthenticated() && request.auth.uid == resource.data.uid;
-    }
-
-    function isValidEmail(email) {
-      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
-    }
-
-    function isValidDateString(dateStr) {
-      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
-    }
-
     function isAdmin() {
-      return isAuthenticated() && (
-        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
-        (request.auth.token.email == "nikashjaipal2008@gmail.com" && request.auth.token.email_verified == true)
-      );
+      return isAuthenticated() &&
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin' ||
+          (request.auth.token.email == "nikashjaipal2008@gmail.com" && request.auth.token.email_verified == true));
     }
-
-    // ===============================================================
-    // Domain Validators
-    // ===============================================================
 
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'createdAt']) &&
-             data.uid == request.auth.uid &&
-             (!('fullName' in data) || (data.fullName is string && data.fullName.size() < 100)) &&
-             isValidEmail(data.email) &&
-             isValidDateString(data.createdAt);
+      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+             data.uid is string &&
+             data.email is string &&
+             data.role in ['user', 'admin'] &&
+             data.createdAt is timestamp;
     }
 
     function isValidHazard(data) {
-      return data.keys().hasAll(['id', 'reporterUid', 'type', 'location', 'status', 'createdAt']) &&
-             data.reporterUid == request.auth.uid &&
-             data.type is string &&
-             data.status in ['pending', 'in-progress', 'resolved'] &&
-             isValidDateString(data.createdAt);
-    }
-
-    function isValidAssistanceRequest(data) {
-      return data.keys().hasAll(['id', 'userUid', 'type', 'location', 'status', 'createdAt']) &&
-             (data.userUid == request.auth.uid || data.volunteerUid == request.auth.uid) &&
-             data.status in ['pending', 'accepted', 'completed', 'cancelled'] &&
-             isValidDateString(data.createdAt);
+      return data.keys().hasAll(['id', 'type', 'description', 'severity', 'location', 'userId', 'createdAt']) &&
+             data.id is string &&
+             data.type in ['uneven-path', 'construction', 'no-elevator', 'crowded', 'poor-lighting', 'other'] &&
+             data.description is string && data.description.size() < 1000 &&
+             data.severity in ['low', 'medium', 'high'] &&
+             data.location is map &&
+             data.location.latitude is number &&
+             data.location.longitude is number &&
+             data.userId is string &&
+             data.createdAt is timestamp;
     }
 
     // ===============================================================
@@ -65,22 +77,20 @@ service cloud.firestore {
     // ===============================================================
 
     match /users/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
-      allow create: if isOwner(userId) && isValidUser(request.resource.data);
-      allow update: if isOwner(userId) && isValidUser(request.resource.data);
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == 'user';
+      allow update: if isAuthenticated() && (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data) && 
+                    (isOwner(userId) ? request.resource.data.role == resource.data.role : true);
+      allow delete: if isAdmin();
     }
 
     match /hazards/{hazardId} {
       allow read: if isAuthenticated();
-      allow create: if isAuthenticated() && isValidHazard(request.resource.data);
-      allow update: if (isAuthenticated() && (resource.data.reporterUid == request.auth.uid || isAdmin())) && isValidHazard(request.resource.data);
-      allow delete: if isAdmin();
-    }
-
-    match /assistance_requests/{requestId} {
-      allow read: if isAuthenticated() && (resource.data.userUid == request.auth.uid || resource.data.volunteerUid == request.auth.uid || isAdmin() || (resource.data.status == 'pending'));
-      allow create: if isAuthenticated() && isValidAssistanceRequest(request.resource.data);
-      allow update: if isAuthenticated() && isValidAssistanceRequest(request.resource.data);
+      allow create: if isAuthenticated() && isValidHazard(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin()) && isValidHazard(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
     }
   }
 }

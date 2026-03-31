@@ -48,7 +48,7 @@ export default function ProfileSetup1() {
   const icons: Record<string, any> = { Eye, Ear, Accessibility, Brain, User, Info, Sparkles, Mic, Stethoscope };
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] font-sans text-[#1A1A1A] flex flex-col">
+    <div className="bg-[#F8F9FA] font-sans text-[#1A1A1A] flex flex-col">
       {/* Header */}
       <header className="bg-white px-8 py-4 border-b border-gray-100 flex items-center justify-between">
         <div className="text-2xl font-bold text-[#006D6D]">Sahayak</div>

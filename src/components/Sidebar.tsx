@@ -1,5 +1,5 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Navigation, LayoutGrid, BarChart3, User, LogOut } from 'lucide-react';
+import { Home, Navigation, Accessibility, AlertTriangle, User, LogOut } from 'lucide-react';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { toast } from 'sonner';
@@ -46,8 +46,8 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navItems = [
     { to: '/dashboard', icon: Home, label: 'Home' },
     { to: '/route-planning', icon: Navigation, label: 'Navigation' },
-    { to: '/services', icon: LayoutGrid, label: 'Services' },
-    { to: '/hazard-reports', icon: BarChart3, label: 'Reports' },
+    { to: '/accessibility', icon: Accessibility, label: 'Accessibility' },
+    { to: '/hazard-reports', icon: AlertTriangle, label: 'Hazard Report' },
     { to: '/settings', icon: User, label: 'Profile' },
   ];
 

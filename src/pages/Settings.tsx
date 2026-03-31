@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion';
 import { useState, useEffect } from 'react';
-import { Search, Bell, User, MapPin, Navigation, ShieldAlert, HeartPulse, MessageSquare, ChevronRight, Globe, Info, Sparkles, Map as MapIcon, Settings as SettingsIcon, LogOut, Shield, CreditCard, BellRing, Smartphone, Trash2, Camera, Mail, Phone, Lock } from 'lucide-react';
+import { Search, Bell, User, MapPin, Navigation, ShieldAlert, HeartPulse, MessageSquare, ChevronRight, Globe, Info, Sparkles, Map as MapIcon, Settings as SettingsIcon, LogOut, Shield, CreditCard, BellRing, Smartphone, Trash2, Camera, Mail, Phone, Lock, Menu, Save } from 'lucide-react';
 import Sidebar from '../components/Sidebar';
 import { auth, db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
@@ -14,6 +14,7 @@ export default function Settings() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -64,11 +65,31 @@ export default function Settings() {
   if (loading) return null;
 
   return (
-    <div className="min-h-screen bg-[#F8F9FA] flex font-sans text-[#1A1A1A]">
-      <Sidebar />
+    <div className="bg-[#F8F9FA] flex font-sans text-[#1A1A1A]">
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="flex-1 p-8 overflow-y-auto">
-        <header className="flex items-center justify-between mb-12">
+      <main className="flex-1 lg:ml-64 p-4 md:p-8 overflow-y-auto">
+        {/* Mobile Header */}
+        <header className="lg:hidden h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 mb-6 -mx-4 md:-mx-8 -mt-8 sticky top-0 z-20">
+          <div className="flex items-center gap-3">
+            <button 
+              onClick={() => setSidebarOpen(true)}
+              className="p-2 rounded-xl hover:bg-gray-50 text-gray-500"
+            >
+              <Menu className="w-6 h-6" />
+            </button>
+            <h1 className="font-bold text-lg">Settings</h1>
+          </div>
+          <button
+            onClick={saveProfile}
+            disabled={saving}
+            className="w-10 h-10 rounded-xl bg-[#006D6D] text-white flex items-center justify-center shadow-lg shadow-teal-900/10 disabled:opacity-50"
+          >
+            <Save className="w-5 h-5" />
+          </button>
+        </header>
+
+        <header className="hidden lg:flex items-center justify-between mb-12">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 rounded-2xl bg-[#4B3F72] text-white flex items-center justify-center">
               <SettingsIcon className="w-6 h-6" />

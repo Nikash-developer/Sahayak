@@ -1,9 +1,10 @@
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
-import { doc, setDoc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
-import { Eye, Ear, Accessibility, Brain, User, Info, Check, Sparkles, Mic, Stethoscope } from 'lucide-react';
+import { doc, setDoc, Timestamp } from 'firebase/firestore';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
+import { Eye, Ear, Brain, User, Info, Check, Sparkles, Mic, Stethoscope } from 'lucide-react';
+import { WheelchairIcon } from '../components/WheelchairIcon';
 import { DISABILITY_OPTIONS } from '../constants';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
@@ -33,19 +34,20 @@ export default function ProfileSetup1() {
       await setDoc(doc(db, 'users', user.uid), {
         uid: user.uid,
         email: user.email,
+        role: 'user',
         disabilities: selected,
-        createdAt: new Date().toISOString(),
+        createdAt: Timestamp.now(),
       }, { merge: true });
 
       navigate('/setup/2');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save progress');
+      handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser?.uid}`);
     } finally {
       setLoading(false);
     }
   };
 
-  const icons: Record<string, any> = { Eye, Ear, Accessibility, Brain, User, Info, Sparkles, Mic, Stethoscope };
+  const icons: Record<string, any> = { Eye, Ear, Wheelchair: WheelchairIcon, Brain, User, Info, Sparkles, Mic, Stethoscope };
 
   return (
     <div className="bg-[#F8F9FA] font-sans text-[#1A1A1A] flex flex-col">

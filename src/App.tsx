@@ -57,7 +57,6 @@ export default function App() {
       <VoiceProvider>
         <Router>
           <Toaster position="top-right" richColors />
-          <GlobalVoiceAssistant />
           <AppRoutes />
         </Router>
       </VoiceProvider>

@@ -3,13 +3,15 @@ import { useState, useEffect } from 'react';
 import { 
   Search, Bell, User, MapPin, Navigation, ShieldAlert, HeartPulse, 
   MessageSquare, ChevronRight, Globe, Info, Sparkles, Map as MapIcon, 
-  Accessibility, Sun, Moon, Volume2, Type, Eye, Hand, Ear, Brain, 
+  Sun, Moon, Volume2, Type, Eye, Hand, Ear, Brain, 
   Save, RotateCcw, Menu, Play, Video, CheckCircle, Trash2, 
   Settings2, Award, BarChart2, Heart, ArrowUpRight, AlertTriangle, 
   LayoutGrid, History, Smartphone, Mic, VolumeX, EyeOff, 
   Fingerprint, Headphones, Zap, HelpCircle, Check, Loader2
 } from 'lucide-react';
+import { WheelchairIcon } from '../components/WheelchairIcon';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
 import { auth, db } from '../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { UserProfile } from '../types';
@@ -23,24 +25,49 @@ export default function AccessibilitySettings() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const [activeProfile, setActiveProfile] = useState<string | null>(null);
-  const [islActive, setIslActive] = useState(true);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showFeedback, setShowFeedback] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const profiles = [
-    { id: 'visual', label: 'Visual', icon: Eye, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100' },
-    { id: 'hearing', label: 'Hearing', icon: Ear, color: 'text-purple-500', bg: 'bg-purple-50', border: 'border-purple-100' },
-    { id: 'motor', label: 'Motor', icon: Hand, color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-100' },
-    { id: 'cognitive', label: 'Cognitive', icon: Brain, color: 'text-teal-500', bg: 'bg-teal-50', border: 'border-teal-100' },
+    { id: 'visual', label: 'Visual', icon: Eye, color: 'text-blue-500', bg: 'bg-blue-50', border: 'border-blue-100', desc: 'High contrast & large text' },
+    { id: 'hearing', label: 'Hearing', icon: Ear, color: 'text-purple-500', bg: 'bg-purple-50', border: 'border-purple-100', desc: 'Vibration & ISL support' },
+    { id: 'motor', label: 'Motor', icon: Hand, color: 'text-orange-500', bg: 'bg-orange-50', border: 'border-orange-100', desc: 'Voice & gesture control' },
+    { id: 'cognitive', label: 'Cognitive', icon: Brain, color: 'text-teal-500', bg: 'bg-teal-50', border: 'border-teal-100', desc: 'Simplified & focused UI' },
   ];
 
   const applyProfile = (id: string) => {
     setActiveProfile(id);
-    toast.success(`${id.charAt(0).toUpperCase() + id.slice(1)} profile applied!`);
-    // Logic to update multiple settings at once based on profile
+    
+    const basePrefs = profile?.preferences || {
+      voiceAlerts: false,
+      vibrationFeedback: false,
+      highContrast: false,
+      simplifiedMode: false,
+      language: 'en',
+      textSize: 100,
+      screenReader: false,
+      colorBlindMode: 'None' as const,
+      voiceControl: false,
+      islSupport: false
+    };
+
+    let updates: Partial<UserProfile['preferences']> = {};
+
     if (id === 'visual') {
-      handleUpdate({ highContrast: true });
+      updates = { highContrast: true, textSize: 150, screenReader: true, colorBlindMode: 'None' };
     } else if (id === 'hearing') {
-      handleUpdate({ vibrationFeedback: true, voiceAlerts: false });
+      updates = { vibrationFeedback: true, voiceAlerts: false, islSupport: true };
+    } else if (id === 'motor') {
+      updates = { voiceControl: true, simplifiedMode: true };
+    } else if (id === 'cognitive') {
+      updates = { simplifiedMode: true, voiceAlerts: true };
     }
+
+    handleUpdate(updates);
+    toast.success(`${id.charAt(0).toUpperCase() + id.slice(1)} profile applied!`, {
+      description: "Settings have been auto-configured for your needs."
+    });
   };
 
   useEffect(() => {
@@ -48,24 +75,66 @@ export default function AccessibilitySettings() {
     if (!user) return;
 
     const fetchProfile = async () => {
-      const docRef = doc(db, 'users', user.uid);
-      const docSnap = await getDoc(docRef);
-      if (docSnap.exists()) {
-        setProfile(docSnap.data() as UserProfile);
+      try {
+        const docRef = doc(db, 'users', user.uid);
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data() as UserProfile;
+          // Ensure all preferences exist
+          const defaultPrefs = {
+            voiceAlerts: false,
+            vibrationFeedback: false,
+            highContrast: false,
+            simplifiedMode: false,
+            language: 'en',
+            textSize: 100,
+            screenReader: false,
+            colorBlindMode: 'None' as const,
+            voiceControl: false,
+            islSupport: false,
+            ...data.preferences
+          };
+          setProfile({ ...data, preferences: defaultPrefs });
+        }
+      } catch (error) {
+        console.error("Error fetching profile:", error);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
 
     fetchProfile();
   }, []);
 
-  const handleUpdate = async (updates: Partial<UserProfile['preferences']>) => {
+  const handleUpdate = (updates: Partial<UserProfile['preferences']>) => {
     if (!profile) return;
-    const newProfile = {
-      ...profile,
-      preferences: { ...profile.preferences, ...updates }
-    };
-    setProfile(newProfile);
+    setProfile(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        preferences: { ...prev.preferences, ...updates }
+      };
+    });
+  };
+
+  const resetSettings = async () => {
+    const user = auth.currentUser;
+    if (!user) return;
+    
+    setLoading(true);
+    try {
+      const docRef = doc(db, 'users', user.uid);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        setProfile(docSnap.data() as UserProfile);
+        setActiveProfile(null);
+        toast.info('Settings reset to last saved state');
+      }
+    } catch (error) {
+      toast.error('Failed to reset settings');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const saveSettings = async () => {
@@ -91,28 +160,32 @@ export default function AccessibilitySettings() {
     <div className="bg-[#F8F9FA] flex font-sans text-[#1A1A1A] min-h-screen">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="flex-1 lg:ml-64 p-4 md:p-8 lg:p-12 overflow-y-auto pb-32">
-        {/* Mobile Header */}
-        <header className="lg:hidden h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 mb-6 -mx-4 md:-mx-8 -mt-8 sticky top-0 z-20">
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-xl hover:bg-gray-50 text-gray-500"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <h1 className="font-bold text-lg">Accessibility</h1>
-          </div>
-          <button
-            onClick={saveSettings}
-            disabled={saving}
-            className="w-10 h-10 rounded-xl bg-[#006D6D] text-white flex items-center justify-center shadow-lg shadow-teal-900/10 disabled:opacity-50"
-          >
-            <Save className="w-5 h-5" />
-          </button>
-        </header>
+      <main className="flex-1 lg:ml-64 overflow-y-auto">
+        <Header 
+          onMenuClick={() => setSidebarOpen(true)} 
+          title="Accessibility"
+          rightElement={
+            <div className="flex items-center gap-3">
+              <button
+                onClick={resetSettings}
+                className="px-4 py-2 rounded-xl text-gray-500 hover:bg-gray-50 font-bold text-sm transition-colors"
+              >
+                Reset
+              </button>
+              <button
+                onClick={saveSettings}
+                disabled={saving}
+                className="px-6 py-2 rounded-xl bg-[#006D6D] text-white font-bold text-sm shadow-lg shadow-teal-900/10 disabled:opacity-50 flex items-center gap-2"
+              >
+                {saving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
+                {saving ? 'Saving...' : 'Save'}
+              </button>
+            </div>
+          }
+        />
 
-        {/* Hero Section - Editorial Style */}
+        <div className="pt-20 p-4 md:p-8 lg:p-12 pb-32">
+          {/* Hero Section - Editorial Style */}
         <section className="mb-16 space-y-6">
           <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-teal-50 text-teal-600 w-fit text-[10px] font-bold tracking-widest uppercase">
             <Sparkles className="w-3 h-3" />
@@ -179,21 +252,27 @@ export default function AccessibilitySettings() {
                 <div className="space-y-6">
                   <div className="flex justify-between items-end">
                     <label className="font-bold text-lg">Text Size Adjustment</label>
-                    <span className="text-[#006D6D] font-black text-xl">125%</span>
+                    <span className="text-[#006D6D] font-black text-xl">{profile?.preferences?.textSize || 100}%</span>
                   </div>
                   <div className="relative flex items-center h-2">
                     <div className="absolute w-full h-full bg-gray-100 rounded-full" />
-                    <div className="absolute w-[25%] h-full bg-[#006D6D] rounded-full" />
+                    <div 
+                      className="absolute h-full bg-[#006D6D] rounded-full transition-all duration-300" 
+                      style={{ width: `${((profile?.preferences?.textSize || 100) - 100) / (200 - 100) * 100}%` }}
+                    />
                     <input 
                       type="range" 
                       min="100" 
                       max="200" 
-                      value="125" 
+                      value={profile?.preferences?.textSize || 100} 
                       step="25" 
                       className="absolute w-full h-8 opacity-0 cursor-pointer z-10"
-                      onChange={(e) => toast.info(`Text size: ${e.target.value}%`)}
+                      onChange={(e) => handleUpdate({ textSize: parseInt(e.target.value) })}
                     />
-                    <div className="absolute left-[25%] -translate-x-1/2 w-6 h-6 bg-white border-4 border-[#006D6D] rounded-full shadow-md" />
+                    <div 
+                      className="absolute w-6 h-6 bg-white border-4 border-[#006D6D] rounded-full shadow-md transition-all duration-300" 
+                      style={{ left: `calc(${((profile?.preferences?.textSize || 100) - 100) / (200 - 100) * 100}% - 12px)` }}
+                    />
                   </div>
                   <div className="flex justify-between text-[10px] font-black text-gray-300 uppercase tracking-widest">
                     <span>100%</span>
@@ -230,10 +309,16 @@ export default function AccessibilitySettings() {
                       <p className="text-[10px] text-gray-400">Optimized for TalkBack/VoiceOver</p>
                     </div>
                     <button
-                      onClick={() => toast.info('Screen reader optimization enabled')}
-                      className="w-14 h-8 rounded-full bg-gray-200 relative"
+                      onClick={() => handleUpdate({ screenReader: !profile?.preferences?.screenReader })}
+                      className={cn(
+                        "w-14 h-8 rounded-full transition-all relative",
+                        profile?.preferences?.screenReader ? "bg-[#006D6D]" : "bg-gray-200"
+                      )}
                     >
-                      <div className="absolute top-1 left-1 w-6 h-6 rounded-full bg-white shadow-sm" />
+                      <div className={cn(
+                        "absolute top-1 w-6 h-6 rounded-full bg-white transition-all shadow-sm",
+                        profile?.preferences?.screenReader ? "left-7" : "left-1"
+                      )} />
                     </button>
                   </div>
                 </div>
@@ -244,9 +329,10 @@ export default function AccessibilitySettings() {
                     {['None', 'Protanopia', 'Deuteranopia', 'Tritanopia'].map((mode) => (
                       <button
                         key={mode}
+                        onClick={() => handleUpdate({ colorBlindMode: mode as any })}
                         className={cn(
                           "px-6 py-2 rounded-full font-bold text-xs transition-all",
-                          mode === 'None' ? "bg-[#006D6D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                          profile?.preferences?.colorBlindMode === mode ? "bg-[#006D6D] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"
                         )}
                       >
                         {mode}
@@ -270,14 +356,31 @@ export default function AccessibilitySettings() {
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="p-8 bg-gray-50 rounded-[32px] flex flex-col justify-between h-56 group hover:bg-white hover:shadow-xl hover:shadow-teal-900/5 transition-all cursor-pointer border border-transparent hover:border-teal-500/10">
+                <div 
+                  onClick={() => handleUpdate({ voiceControl: !profile?.preferences?.voiceControl })}
+                  className={cn(
+                    "p-8 rounded-[32px] flex flex-col justify-between h-56 transition-all cursor-pointer border",
+                    profile?.preferences?.voiceControl 
+                      ? "bg-orange-50 border-orange-200 shadow-lg shadow-orange-900/5" 
+                      : "bg-gray-50 border-transparent hover:border-teal-500/10"
+                  )}
+                >
                   <div className="flex justify-between">
-                    <div className="w-14 h-14 rounded-2xl bg-orange-100 text-orange-600 flex items-center justify-center">
+                    <div className={cn(
+                      "w-14 h-14 rounded-2xl flex items-center justify-center transition-colors",
+                      profile?.preferences?.voiceControl ? "bg-orange-500 text-white" : "bg-orange-100 text-orange-600"
+                    )}>
                       <Mic className="w-7 h-7" />
                     </div>
-                    <button className="w-14 h-7 rounded-full bg-gray-200 relative">
-                      <div className="absolute top-1 left-1 w-5 h-5 rounded-full bg-white shadow-sm" />
-                    </button>
+                    <div className={cn(
+                      "w-14 h-7 rounded-full transition-all relative",
+                      profile?.preferences?.voiceControl ? "bg-orange-500" : "bg-gray-200"
+                    )}>
+                      <div className={cn(
+                        "absolute top-1 w-5 h-5 rounded-full bg-white transition-all shadow-sm",
+                        profile?.preferences?.voiceControl ? "left-8" : "left-1"
+                      )} />
+                    </div>
                   </div>
                   <div>
                     <h4 className="font-bold text-xl mb-1">Voice Control</h4>
@@ -285,14 +388,31 @@ export default function AccessibilitySettings() {
                   </div>
                 </div>
 
-                <div className="p-8 bg-gray-50 rounded-[32px] flex flex-col justify-between h-56 group hover:bg-white hover:shadow-xl hover:shadow-teal-900/5 transition-all cursor-pointer border border-transparent hover:border-teal-500/10">
+                <div 
+                  onClick={() => handleUpdate({ simplifiedMode: !profile?.preferences?.simplifiedMode })}
+                  className={cn(
+                    "p-8 rounded-[32px] flex flex-col justify-between h-56 transition-all cursor-pointer border",
+                    profile?.preferences?.simplifiedMode 
+                      ? "bg-teal-50 border-teal-200 shadow-lg shadow-teal-900/5" 
+                      : "bg-gray-50 border-transparent hover:border-teal-500/10"
+                  )}
+                >
                   <div className="flex justify-between">
-                    <div className="w-14 h-14 rounded-2xl bg-teal-100 text-[#006D6D] flex items-center justify-center">
+                    <div className={cn(
+                      "w-14 h-14 rounded-2xl flex items-center justify-center transition-colors",
+                      profile?.preferences?.simplifiedMode ? "bg-[#006D6D] text-white" : "bg-teal-100 text-[#006D6D]"
+                    )}>
                       <LayoutGrid className="w-7 h-7" />
                     </div>
-                    <button className="w-14 h-7 rounded-full bg-[#006D6D] relative">
-                      <div className="absolute top-1 left-8 w-5 h-5 rounded-full bg-white shadow-sm" />
-                    </button>
+                    <div className={cn(
+                      "w-14 h-7 rounded-full transition-all relative",
+                      profile?.preferences?.simplifiedMode ? "bg-[#006D6D]" : "bg-gray-200"
+                    )}>
+                      <div className={cn(
+                        "absolute top-1 w-5 h-5 rounded-full bg-white transition-all shadow-sm",
+                        profile?.preferences?.simplifiedMode ? "left-8" : "left-1"
+                      )} />
+                    </div>
                   </div>
                   <div>
                     <h4 className="font-bold text-xl mb-1">Simplified Mode</h4>
@@ -317,57 +437,85 @@ export default function AccessibilitySettings() {
                   </div>
                 </div>
                 <button 
-                  onClick={() => setIslActive(!islActive)}
+                  onClick={() => handleUpdate({ islSupport: !profile?.preferences?.islSupport })}
                   className={cn(
                     "w-16 h-8 rounded-full transition-all relative",
-                    islActive ? "bg-teal-500" : "bg-white/10"
+                    profile?.preferences?.islSupport ? "bg-teal-500" : "bg-white/10"
                   )}
                 >
                   <div className={cn(
                     "absolute top-1 w-6 h-6 rounded-full bg-white transition-all shadow-sm",
-                    islActive ? "left-9" : "left-1"
+                    profile?.preferences?.islSupport ? "left-9" : "left-1"
                   )} />
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-12 items-center relative z-10">
-                <div className="lg:col-span-7 aspect-video rounded-[32px] bg-black/40 overflow-hidden relative shadow-2xl group cursor-pointer">
-                  <img 
-                    className="w-full h-full object-cover opacity-80 group-hover:scale-105 transition-transform duration-700" 
-                    src="https://images.unsplash.com/photo-1516321497487-e288fb19713f?auto=format&fit=crop&q=80&w=800" 
-                    alt="ISL Interpretation" 
-                  />
-                  <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent flex flex-col justify-end p-8">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-3 h-3 rounded-full bg-red-500 animate-pulse" />
-                      <span className="text-xs font-bold tracking-widest uppercase">Live Interpretation Active</span>
+              <div className="space-y-12 relative z-10">
+                <div className="w-full aspect-video rounded-[40px] bg-black/40 overflow-hidden relative shadow-2xl group border-4 border-white/10">
+                  <iframe
+                    className="w-full h-full border-none"
+                    src="https://www.youtube.com/embed/_xId8cP7rXg"
+                    title="Indian Sign Language Tutorial"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                    allowFullScreen
+                  ></iframe>
+                  <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/90 via-black/20 to-transparent p-10 pointer-events-none">
+                    <div className="flex items-center gap-4 mb-3">
+                      <div className={cn(
+                        "w-4 h-4 rounded-full animate-pulse",
+                        profile?.preferences?.islSupport ? "bg-red-500" : "bg-gray-500"
+                      )} />
+                      <span className="text-sm font-black tracking-widest uppercase text-white">
+                        {profile?.preferences?.islSupport ? "Live Interpretation Active" : "Interpretation Offline"}
+                      </span>
                     </div>
-                    <p className="text-white/60 text-xs">Connecting you with a certified ISL interpreter...</p>
-                  </div>
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-20 h-20 rounded-full bg-white/20 backdrop-blur-xl flex items-center justify-center text-white border border-white/30 group-hover:scale-110 transition-transform">
-                      <Play className="w-8 h-8 fill-current" />
-                    </div>
+                    <p className="text-white/80 text-sm font-medium">
+                      {profile?.preferences?.islSupport 
+                        ? "Watch the tutorial below to master essential transit signs." 
+                        : "Enable ISL support to unlock full sign language navigation features."}
+                    </p>
                   </div>
                 </div>
 
-                <div className="lg:col-span-5 space-y-8">
-                  <h4 className="text-xl font-bold">How it works</h4>
-                  <div className="space-y-6">
-                    {[
-                      { num: '01', text: 'Enable ISL toggle to see sign language icons next to all announcements.' },
-                      { num: '02', text: 'Tap the icon to open a floating video guide for station directions.' },
-                      { num: '03', text: 'Connect with a live interpreter for complex transit assistance.' }
-                    ].map((step) => (
-                      <div key={step.num} className="flex gap-4">
-                        <span className="text-teal-500 font-black text-lg">{step.num}</span>
-                        <p className="text-teal-100/70 text-sm leading-relaxed">{step.text}</p>
-                      </div>
-                    ))}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-start">
+                  <div className="space-y-8">
+                    <h4 className="text-2xl font-black font-headline">Master ISL Navigation</h4>
+                    <div className="space-y-6">
+                      {[
+                        { num: '01', text: 'Enable ISL toggle to see sign language icons next to all announcements.' },
+                        { num: '02', text: 'Tap the icon to open a floating video guide for station directions.' },
+                        { num: '03', text: 'Connect with a live interpreter for complex transit assistance.' }
+                      ].map((step) => (
+                        <div key={step.num} className="flex gap-6 items-start">
+                          <span className="text-teal-400 font-black text-2xl leading-none">{step.num}</span>
+                          <p className="text-teal-100/80 text-base leading-relaxed">{step.text}</p>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <button className="w-full py-4 bg-white text-teal-900 rounded-2xl font-bold hover:bg-teal-50 transition-all shadow-xl shadow-black/20">
-                    View ISL Tutorial
-                  </button>
+                  <div className="space-y-6 bg-white/5 p-8 rounded-[32px] border border-white/10">
+                    <h5 className="font-bold text-lg">Quick Actions</h5>
+                    <div className="grid grid-cols-1 gap-4">
+                      <button 
+                        onClick={() => setShowTutorial(true)}
+                        className="w-full py-4 bg-white text-teal-900 rounded-2xl font-bold hover:bg-teal-50 transition-all shadow-xl flex items-center justify-center gap-3"
+                      >
+                        <Play className="w-5 h-5 fill-current" /> Full Screen Tutorial
+                      </button>
+                      <button 
+                        onClick={() => handleUpdate({ islSupport: !profile?.preferences?.islSupport })}
+                        className={cn(
+                          "w-full py-4 rounded-2xl font-bold transition-all flex items-center justify-center gap-3 border-2",
+                          profile?.preferences?.islSupport 
+                            ? "bg-teal-500/20 border-teal-500 text-teal-300" 
+                            : "bg-transparent border-white/20 text-white hover:border-white/40"
+                        )}
+                      >
+                        {profile?.preferences?.islSupport ? <CheckCircle className="w-5 h-5" /> : <Smartphone className="w-5 h-5" />}
+                        {profile?.preferences?.islSupport ? 'ISL Enabled' : 'Enable ISL Support'}
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             </section>
@@ -406,8 +554,13 @@ export default function AccessibilitySettings() {
                       <div>
                         <div className="text-[10px] font-bold text-white/30 uppercase tracking-widest mb-1">Next Step</div>
                         <div className={cn(
-                          "font-bold transition-all",
-                          profile?.preferences?.highContrast ? "text-white text-xl" : "text-white/90 text-lg"
+                          "font-bold transition-all duration-300",
+                          profile?.preferences?.highContrast ? "text-white" : "text-white/90",
+                          (profile?.preferences?.textSize || 100) <= 100 && "text-lg",
+                          (profile?.preferences?.textSize || 100) === 125 && "text-xl",
+                          (profile?.preferences?.textSize || 100) === 150 && "text-2xl",
+                          (profile?.preferences?.textSize || 100) === 175 && "text-3xl",
+                          (profile?.preferences?.textSize || 100) >= 200 && "text-4xl",
                         )}>Turn Right in 20m</div>
                       </div>
                     </div>
@@ -427,7 +580,14 @@ export default function AccessibilitySettings() {
                       </div>
                       <div>
                         <div className="text-[10px] font-bold text-red-500/60 uppercase tracking-widest mb-1">Hazard Alert</div>
-                        <div className="text-lg font-bold text-white">Uneven Surface</div>
+                        <div className={cn(
+                          "font-bold text-white transition-all duration-300",
+                          (profile?.preferences?.textSize || 100) <= 100 && "text-lg",
+                          (profile?.preferences?.textSize || 100) === 125 && "text-xl",
+                          (profile?.preferences?.textSize || 100) === 150 && "text-2xl",
+                          (profile?.preferences?.textSize || 100) === 175 && "text-3xl",
+                          (profile?.preferences?.textSize || 100) >= 200 && "text-4xl",
+                        )}>Uneven Surface</div>
                       </div>
                     </div>
                   </div>
@@ -448,7 +608,7 @@ export default function AccessibilitySettings() {
                     Our AI assistant can help you find the perfect settings for your specific needs.
                   </p>
                   <button 
-                    onClick={() => toast.info('AI Assistant coming soon')}
+                    onClick={() => setShowHelp(true)}
                     className="w-full py-5 rounded-3xl bg-gray-50 text-[#006D6D] font-bold text-sm hover:bg-[#006D6D] hover:text-white transition-all flex items-center justify-center gap-3 group shadow-sm"
                   >
                     <MessageSquare className="w-5 h-5" /> Chat with Assistant
@@ -459,39 +619,139 @@ export default function AccessibilitySettings() {
           </div>
         </div>
 
-        {/* Floating Save Bar */}
-        <motion.div 
-          initial={{ y: 100 }}
-          animate={{ y: 0 }}
-          className="fixed bottom-8 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-4xl z-50"
-        >
-          <div className="bg-white/80 backdrop-blur-2xl p-4 md:p-6 rounded-[40px] border border-white shadow-2xl flex items-center justify-between gap-6">
-            <div className="hidden md:flex items-center gap-8 text-gray-400 font-bold text-xs uppercase tracking-widest px-4">
-              <button className="hover:text-[#006D6D] transition-colors flex items-center gap-2">
-                <HelpCircle className="w-4 h-4" /> Help
-              </button>
-              <button className="hover:text-[#006D6D] transition-colors flex items-center gap-2">
-                <Heart className="w-4 h-4" /> Feedback
-              </button>
-            </div>
-            <div className="flex items-center gap-4 w-full md:w-auto">
-              <button 
-                onClick={() => window.location.reload()}
-                className="flex-1 md:flex-none px-8 py-4 rounded-3xl font-bold text-gray-500 hover:bg-gray-50 transition-colors text-sm"
+        {/* Modals */}
+        <AnimatePresence>
+          {(showHelp || showFeedback || showTutorial) && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4"
+              onClick={() => {
+                setShowHelp(false);
+                setShowFeedback(false);
+                setShowTutorial(false);
+              }}
+            >
+              <motion.div 
+                initial={{ scale: 0.9, y: 20 }}
+                animate={{ scale: 1, y: 0 }}
+                exit={{ scale: 0.9, y: 20 }}
+                className="bg-white rounded-[48px] p-10 max-w-2xl w-full shadow-2xl overflow-hidden relative"
+                onClick={e => e.stopPropagation()}
               >
-                Reset
-              </button>
-              <button 
-                onClick={saveSettings}
-                disabled={saving}
-                className="flex-1 md:flex-none px-12 py-4 rounded-3xl bg-[#006D6D] text-white font-bold shadow-xl shadow-teal-900/20 hover:brightness-110 active:scale-95 transition-all flex items-center justify-center gap-3 text-sm disabled:opacity-50"
-              >
-                {saving ? <Loader2 className="w-5 h-5 animate-spin" /> : <Check className="w-5 h-5" />}
-                {saving ? 'Saving...' : 'Save Preferences'}
-              </button>
-            </div>
-          </div>
-        </motion.div>
+                <div className="absolute top-0 right-0 w-64 h-64 bg-teal-50 blur-[100px] opacity-50" />
+                
+                <div className="relative z-10">
+                  {showHelp && (
+                    <div className="space-y-6">
+                      <div className="w-16 h-16 rounded-3xl bg-blue-50 text-blue-500 flex items-center justify-center mb-8">
+                        <HelpCircle className="w-8 h-8" />
+                      </div>
+                      <h2 className="text-3xl font-black font-headline">Accessibility Help</h2>
+                      <div className="space-y-4 text-gray-500 leading-relaxed">
+                        <p>Our accessibility settings are designed to make Sahayak usable for everyone. Here's a quick guide:</p>
+                        <ul className="space-y-3 list-disc list-inside">
+                          <li><span className="font-bold text-gray-700">Visual:</span> Adjust text size, contrast, and color filters.</li>
+                          <li><span className="font-bold text-gray-700">Hearing:</span> Enable ISL support and vibration feedback.</li>
+                          <li><span className="font-bold text-gray-700">Motor:</span> Use voice commands and simplified layouts.</li>
+                          <li><span className="font-bold text-gray-700">Cognitive:</span> Reduce clutter and enable focused navigation.</li>
+                        </ul>
+                        <div className="pt-6">
+                          <button 
+                            onClick={() => {
+                              setShowHelp(false);
+                              setShowTutorial(true);
+                            }}
+                            className="flex items-center gap-2 text-[#006D6D] font-bold hover:underline"
+                          >
+                            <Play className="w-4 h-4" /> Watch ISL Tutorial
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {showFeedback && (
+                    <div className="space-y-6">
+                      <div className="w-16 h-16 rounded-3xl bg-pink-50 text-pink-500 flex items-center justify-center mb-8">
+                        <Heart className="w-8 h-8" />
+                      </div>
+                      <h2 className="text-3xl font-black font-headline">Share Your Feedback</h2>
+                      <p className="text-gray-500 leading-relaxed">
+                        We are constantly improving Sahayak. If you have suggestions for new accessibility features or improvements, we'd love to hear from you.
+                      </p>
+                      <textarea 
+                        placeholder="Tell us how we can improve..."
+                        className="w-full h-32 p-6 rounded-3xl bg-gray-50 border-none focus:ring-2 focus:ring-teal-500/20 text-sm resize-none"
+                      />
+                      <button 
+                        onClick={() => {
+                          toast.success('Thank you for your feedback!');
+                          setShowFeedback(false);
+                        }}
+                        className="w-full py-5 bg-[#006D6D] text-white rounded-2xl font-bold shadow-xl shadow-teal-900/20"
+                      >
+                        Submit Feedback
+                      </button>
+                    </div>
+                  )}
+
+                  {showTutorial && (
+                    <div className="space-y-8">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-4">
+                          <div className="w-14 h-14 rounded-2xl bg-teal-50 text-[#006D6D] flex items-center justify-center">
+                            <Play className="w-7 h-7" />
+                          </div>
+                          <h2 className="text-4xl font-black font-headline">ISL Masterclass</h2>
+                        </div>
+                      </div>
+                      <div className="aspect-video rounded-[40px] bg-black overflow-hidden shadow-2xl border-4 border-gray-50">
+                        <iframe
+                          className="w-full h-full border-none"
+                          src="https://www.youtube.com/embed/_xId8cP7rXg?autoplay=1"
+                          title="Indian Sign Language Tutorial"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        ></iframe>
+                      </div>
+                      <div className="bg-gray-50 p-8 rounded-[32px] space-y-4">
+                        <h4 className="font-bold text-lg">What you'll learn:</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div className="flex items-center gap-3 text-gray-600">
+                            <CheckCircle className="w-5 h-5 text-teal-500" /> Basic Greetings
+                          </div>
+                          <div className="flex items-center gap-3 text-gray-600">
+                            <CheckCircle className="w-5 h-5 text-teal-500" /> Transit Directions
+                          </div>
+                          <div className="flex items-center gap-3 text-gray-600">
+                            <CheckCircle className="w-5 h-5 text-teal-500" /> Emergency Signs
+                          </div>
+                          <div className="flex items-center gap-3 text-gray-600">
+                            <CheckCircle className="w-5 h-5 text-teal-500" /> Station Navigation
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  <button 
+                    onClick={() => {
+                      setShowHelp(false);
+                      setShowFeedback(false);
+                      setShowTutorial(false);
+                    }}
+                    className="mt-10 w-full py-4 text-gray-400 font-bold hover:text-gray-600 transition-colors"
+                  >
+                    Close
+                  </button>
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+        </div>
       </main>
     </div>
   );

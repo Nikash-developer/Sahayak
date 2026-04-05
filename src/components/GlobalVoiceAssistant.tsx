@@ -4,12 +4,15 @@ import { Mic, MicOff, X, Sparkles, Volume2 } from 'lucide-react';
 import { useVoice } from '../contexts/VoiceContext';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const GlobalVoiceAssistant: React.FC = () => {
   const { isListening, startListening, stopListening, lastTranscript, isSupported } = useVoice();
   const [showUI, setShowUI] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const excludedPaths = ['/', '/login', '/setup/1', '/setup/2', '/setup/3'];
 
   useEffect(() => {
     if (isListening) {
@@ -40,7 +43,7 @@ const GlobalVoiceAssistant: React.FC = () => {
     }
   }, [lastTranscript, navigate]);
 
-  if (!isSupported) return null;
+  if (!isSupported || excludedPaths.includes(location.pathname)) return null;
 
   return (
     <>

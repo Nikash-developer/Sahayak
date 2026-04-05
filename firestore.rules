@@ -52,11 +52,18 @@ service cloud.firestore {
     }
 
     function isValidUser(data) {
-      return data.keys().hasAll(['uid', 'email', 'role', 'createdAt']) &&
+      let requiredFields = ['uid', 'email', 'role', 'createdAt'];
+      let allowedFields = ['uid', 'email', 'role', 'createdAt', 'displayName', 'photoURL', 'disabilities', 'mobilityAids', 'setupComplete', 'phoneNumber', 'accessibilitySettings', 'fullName', 'emergencyContactName', 'emergencyContactPhone', 'preferences', 'isVolunteer'];
+      
+      return data.keys().hasAll(requiredFields) &&
+             data.keys().hasOnly(allowedFields) &&
              data.uid is string &&
              data.email is string &&
              data.role in ['user', 'admin'] &&
-             data.createdAt is timestamp;
+             data.createdAt is timestamp &&
+             (!('disabilities' in data) || data.disabilities is list) &&
+             (!('mobilityAids' in data) || data.mobilityAids is list) &&
+             (!('preferences' in data) || data.preferences is map);
     }
 
     function isValidHazard(data) {
@@ -70,6 +77,21 @@ service cloud.firestore {
              data.location.longitude is number &&
              data.userId is string &&
              data.createdAt is timestamp;
+    }
+
+    function isValidEmergencyAlert(data) {
+      let requiredFields = ['userId', 'timestamp', 'status'];
+      let allowedFields = ['userId', 'userEmail', 'userName', 'location', 'timestamp', 'status', 'type'];
+      
+      return data.keys().hasAll(requiredFields) &&
+             data.keys().hasOnly(allowedFields) &&
+             data.userId is string &&
+             data.timestamp is timestamp &&
+             data.status in ['active', 'resolved', 'cancelled'] &&
+             (!('userEmail' in data) || data.userEmail is string) &&
+             (!('userName' in data) || data.userName is string) &&
+             (!('location' in data) || data.location is map) &&
+             (!('type' in data) || data.type is string);
     }
 
     // ===============================================================
@@ -91,6 +113,15 @@ service cloud.firestore {
                     request.resource.data.userId == resource.data.userId &&
                     request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+    }
+
+    match /emergency_alerts/{alertId} {
+      allow read: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin());
+      allow create: if isAuthenticated() && isValidEmergencyAlert(request.resource.data) && request.resource.data.userId == request.auth.uid;
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.userId || isAdmin()) && isValidEmergencyAlert(request.resource.data) &&
+                    request.resource.data.userId == resource.data.userId &&
+                    request.resource.data.timestamp == resource.data.timestamp;
+      allow delete: if isAdmin();
     }
   }
 }

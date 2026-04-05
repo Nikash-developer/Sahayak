@@ -52,6 +52,12 @@
   --color-on-tertiary: #ffffff;
   --color-surface: #f9f9f9;
   --color-primary-fixed-dim: #82d4d4;
+
+  @keyframes spin-slow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  --animate-spin-slow: spin-slow 8s linear infinite;
 }
 
 @layer base {

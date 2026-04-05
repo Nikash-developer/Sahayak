@@ -2,12 +2,13 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useState } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { 
-  Accessibility, User, Info, Check, ChevronRight, 
+  User, Info, Check, ChevronRight, 
   ChevronLeft, MapPin, Navigation, ShieldCheck, 
   HeartPulse, Zap, Activity, Users 
 } from 'lucide-react';
+import { WheelchairIcon } from '../components/WheelchairIcon';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
 
@@ -17,7 +18,7 @@ export default function ProfileSetup2() {
   const [loading, setLoading] = useState(false);
 
   const aids = [
-    { id: 'wheelchair', label: 'Wheelchair', icon: Accessibility },
+    { id: 'wheelchair', label: 'Wheelchair', icon: WheelchairIcon },
     { id: 'scooter', label: 'Motorized Scooter', icon: Zap },
     { id: 'cane', label: 'White Cane', icon: Info },
     { id: 'crutches', label: 'Crutches', icon: User },
@@ -56,7 +57,7 @@ export default function ProfileSetup2() {
 
       navigate('/setup/3');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to save progress');
+      handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser?.uid}`);
     } finally {
       setLoading(false);
     }

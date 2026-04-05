@@ -11,7 +11,7 @@ export const COLORS = {
 export const DISABILITY_OPTIONS = [
   { id: 'visual', label: 'Visual', description: 'Blindness, low vision, or color perception needs.', icon: 'Eye' },
   { id: 'hearing', label: 'Hearing', description: 'Deafness or hard of hearing assistance.', icon: 'Ear' },
-  { id: 'motor', label: 'Motor', description: 'Mobility aids, wheelchair access, or dexterity support.', icon: 'Accessibility' },
+  { id: 'motor', label: 'Motor', description: 'Mobility aids, wheelchair access, or dexterity support.', icon: 'Wheelchair' },
   { id: 'cognitive', label: 'Cognitive', description: 'Learning, attention, or memory processing support.', icon: 'Brain' },
   { id: 'neurodivergent', label: 'Neurodivergent', description: 'Autism, ADHD, or sensory processing needs.', icon: 'Sparkles' },
   { id: 'speech', label: 'Speech', description: 'Speech-related assistance or non-verbal support.', icon: 'Mic' },

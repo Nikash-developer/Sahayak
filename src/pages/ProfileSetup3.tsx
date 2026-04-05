@@ -2,7 +2,7 @@ import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import { doc, updateDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { ShieldCheck, Info, Check, ChevronRight, ChevronLeft, Volume2, Smartphone, Eye, Navigation } from 'lucide-react';
 import { toast } from 'sonner';
 import { cn } from '../lib/utils';
@@ -50,7 +50,7 @@ export default function ProfileSetup3() {
       toast.success('Profile setup complete!');
       navigate('/dashboard');
     } catch (error: any) {
-      toast.error(error.message || 'Failed to complete setup');
+      handleFirestoreError(error, OperationType.WRITE, `users/${auth.currentUser?.uid}`);
     } finally {
       setLoading(false);
     }

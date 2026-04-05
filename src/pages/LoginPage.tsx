@@ -7,11 +7,10 @@ import {
   updateProfile
 } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
+import { auth, db, handleFirestoreError, OperationType } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { 
   Eye, EyeOff, Globe, Bell, User as UserIcon, 
-  Accessibility, Type, Mic, Contrast, Sparkles,
   ChevronDown, Check, X, ArrowRight, ArrowLeft, Phone, User,
   HelpCircle
 } from 'lucide-react';
@@ -29,7 +28,6 @@ export default function LoginPage() {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isAccessibilityOpen, setIsAccessibilityOpen] = useState(false);
   const [isHelpOpen, setIsHelpOpen] = useState(false);
 
   useEffect(() => {
@@ -54,7 +52,12 @@ export default function LoginPage() {
         navigate('/setup/1');
       } else {
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+        let userDoc;
+        try {
+          userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+        } catch (error) {
+          handleFirestoreError(error, OperationType.GET, `users/${userCredential.user.uid}`);
+        }
         
         toast.success('Welcome back!');
         if (userDoc.exists() && userDoc.data()?.setupComplete) {
@@ -77,7 +80,12 @@ export default function LoginPage() {
   const handleGoogleLogin = async () => {
     try {
       const result = await login();
-      const userDoc = await getDoc(doc(db, 'users', result.user.uid));
+      let userDoc;
+      try {
+        userDoc = await getDoc(doc(db, 'users', result.user.uid));
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, `users/${result.user.uid}`);
+      }
       
       toast.success('Welcome back!');
       if (userDoc.exists() && userDoc.data()?.setupComplete) {
@@ -230,18 +238,6 @@ export default function LoginPage() {
             <p className="text-white/90 text-xl leading-relaxed mb-10 font-light">
               Join a world where mobility has no boundaries. We are building the future of inclusive navigation, one step at a time.
             </p>
-            <motion.div 
-              whileHover={{ scale: 1.02 }}
-              className="flex items-center gap-4 p-5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/10 shadow-2xl"
-            >
-              <div className="h-12 w-12 rounded-full bg-secondary flex items-center justify-center shadow-lg">
-                <Accessibility className="text-white w-6 h-6" />
-              </div>
-              <div>
-                <p className="text-white font-bold">Sahayak Unity</p>
-                <p className="text-white/70 text-sm">Empowering 1M+ users globally</p>
-              </div>
-            </motion.div>
           </motion.div>
           {/* Decorative Asymmetric Element */}
           <div className="absolute -bottom-24 -right-24 w-96 h-96 bg-orange-500/20 rounded-full blur-3xl animate-pulse"></div>
@@ -421,53 +417,6 @@ export default function LoginPage() {
           </motion.div>
         </section>
       </main>
-
-      {/* Global Floating Accessibility Toolbar */}
-      <div className="fixed left-8 bottom-8 z-50 flex flex-col gap-4">
-        <AnimatePresence>
-          {isAccessibilityOpen && (
-            <motion.div 
-              initial={{ opacity: 0, scale: 0.8, y: 20 }}
-              animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.8, y: 20 }}
-              className="bg-white/80 backdrop-blur-xl p-3 rounded-3xl shadow-2xl flex flex-col gap-3 border border-outline-variant/20"
-            >
-              <button 
-                onClick={() => toast.success('High Contrast mode activated')}
-                className="w-12 h-12 rounded-2xl flex items-center justify-center bg-teal-50 text-primary hover:bg-primary hover:text-on-primary transition-all shadow-sm" title="High Contrast"
-              >
-                <Contrast className="w-6 h-6" />
-              </button>
-              <button 
-                onClick={() => toast.success('Text size increased')}
-                className="w-12 h-12 rounded-2xl flex items-center justify-center bg-teal-50 text-primary hover:bg-primary hover:text-on-primary transition-all shadow-sm" title="Text Size"
-              >
-                <Type className="w-6 h-6" />
-              </button>
-              <button 
-                onClick={() => toast.success('Voice Over enabled')}
-                className="w-12 h-12 rounded-2xl flex items-center justify-center bg-teal-50 text-primary hover:bg-primary hover:text-on-primary transition-all shadow-sm" title="Voice Over"
-              >
-                <Mic className="w-6 h-6" />
-              </button>
-              <button 
-                onClick={() => toast.success('Simplified Mode activated')}
-                className="w-12 h-12 rounded-2xl flex items-center justify-center bg-teal-50 text-primary hover:bg-primary hover:text-on-primary transition-all shadow-sm" title="Simplified Mode"
-              >
-                <Sparkles className="w-6 h-6" />
-              </button>
-            </motion.div>
-          )}
-        </AnimatePresence>
-        <motion.button 
-          whileHover={{ scale: 1.1 }}
-          whileTap={{ scale: 0.9 }}
-          onClick={() => setIsAccessibilityOpen(!isAccessibilityOpen)}
-          className="w-16 h-16 bg-primary text-on-primary rounded-full shadow-2xl flex items-center justify-center hover:bg-primary-container transition-all relative z-10"
-        >
-          {isAccessibilityOpen ? <X className="w-8 h-8" /> : <Accessibility className="w-8 h-8" />}
-        </motion.button>
-      </div>
 
       {/* Tonal Footer */}
       <footer className="bg-white border-t border-gray-100 py-10">

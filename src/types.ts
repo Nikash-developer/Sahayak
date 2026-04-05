@@ -14,6 +14,11 @@ export interface UserProfile {
     highContrast: boolean;
     simplifiedMode: boolean;
     language: string;
+    textSize: number;
+    screenReader: boolean;
+    colorBlindMode: 'None' | 'Protanopia' | 'Deuteranopia' | 'Tritanopia';
+    voiceControl: boolean;
+    islSupport: boolean;
   };
   isVolunteer: boolean;
   createdAt: string;

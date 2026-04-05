@@ -8,11 +8,13 @@ import {
   Menu, X, Volume2, Play, Loader2, Construction, 
   Droplets, Image as ImageIcon, Ban, Sun, TrendingUp, 
   Zap, Video, Trophy, CheckCircle, Trash2, Settings2,
-  Accessibility, User as UserIcon, Award,
+  User as UserIcon, Award,
   BarChart2, Heart, ArrowUpRight, AlertTriangle,
   LayoutGrid, History
 } from 'lucide-react';
+import { WheelchairIcon } from '../components/WheelchairIcon';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
 import { db, auth } from '../firebase';
 import { collection, addDoc, query, orderBy, onSnapshot, serverTimestamp, Timestamp } from 'firebase/firestore';
 import { HazardReport } from '../types';
@@ -36,8 +38,18 @@ export default function HazardReports() {
   const navigate = useNavigate();
   const { coordinates: userCoords } = useGeolocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [searchQuery, setSearchQuery] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRecording, setIsRecording] = useState(false);
+  const [recordingDuration, setRecordingDuration] = useState(0);
+  const [evidence, setEvidence] = useState<{
+    photos: string[];
+    video: string | null;
+    voiceNote: string | null;
+  }>({
+    photos: [],
+    video: null,
+    voiceNote: null
+  });
   
   const [newHazard, setNewHazard] = useState({
     type: 'flooding',
@@ -45,6 +57,76 @@ export default function HazardReports() {
     severity: 'medium' as 'low' | 'medium' | 'high',
     location: { latitude: 19.0760, longitude: 72.8777, address: 'Main St. & 4th Avenue' }
   });
+
+  useEffect(() => {
+    if (userCoords && typeof userCoords.latitude === 'number' && typeof userCoords.longitude === 'number') {
+      setNewHazard(prev => ({
+        ...prev,
+        location: {
+          ...prev.location,
+          latitude: userCoords.latitude,
+          longitude: userCoords.longitude
+        }
+      }));
+    }
+  }, [userCoords]);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isRecording) {
+      interval = setInterval(() => {
+        setRecordingDuration(prev => prev + 1);
+      }, 1000);
+    } else {
+      setRecordingDuration(0);
+    }
+    return () => clearInterval(interval);
+  }, [isRecording]);
+
+  const handleFileUpload = (type: 'photos' | 'video') => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = type === 'photos' ? 'image/*' : 'video/*';
+    if (type === 'photos') input.multiple = true;
+    
+    input.onchange = (e: any) => {
+      const files = e.target.files;
+      if (!files || files.length === 0) return;
+
+      if (type === 'photos') {
+        const newPhotos = Array.from(files).map(file => URL.createObjectURL(file as File));
+        setEvidence(prev => ({ ...prev, photos: [...prev.photos, ...newPhotos].slice(0, 5) }));
+        toast.success(`${files.length} photo(s) added`);
+      } else {
+        const videoUrl = URL.createObjectURL(files[0]);
+        setEvidence(prev => ({ ...prev, video: videoUrl }));
+        toast.success('Video added');
+      }
+    };
+    input.click();
+  };
+
+  const toggleRecording = () => {
+    if (!isRecording) {
+      setIsRecording(true);
+      toast.info('Recording voice note...');
+    } else {
+      setIsRecording(false);
+      setEvidence(prev => ({ ...prev, voiceNote: 'simulated_voice_note_url' }));
+      toast.success('Voice note recorded');
+    }
+  };
+
+  const removeEvidence = (type: 'photos' | 'video' | 'voiceNote', index?: number) => {
+    if (type === 'photos' && typeof index === 'number') {
+      setEvidence(prev => ({
+        ...prev,
+        photos: prev.photos.filter((_, i) => i !== index)
+      }));
+    } else {
+      setEvidence(prev => ({ ...prev, [type]: null }));
+    }
+  };
 
   const handleReport = async () => {
     if (!newHazard.description) {
@@ -62,6 +144,11 @@ export default function HazardReports() {
 
       await addDoc(collection(db, 'hazards'), {
         ...newHazard,
+        evidence: {
+          photos: evidence.photos,
+          video: evidence.video,
+          voiceNote: evidence.voiceNote
+        },
         reporterUid: user.uid,
         status: 'pending',
         createdAt: serverTimestamp(),
@@ -84,43 +171,7 @@ export default function HazardReports() {
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className="flex-1 flex flex-col lg:ml-64 min-h-screen">
-        {/* Top Navigation */}
-        <header className="h-16 flex items-center justify-between px-8 bg-white/80 backdrop-blur-md shadow-sm sticky top-0 z-40 border-b border-slate-100">
-          <div className="flex items-center gap-4 flex-1">
-            <button 
-              onClick={() => setSidebarOpen(true)}
-              className="lg:hidden p-2 rounded-xl hover:bg-slate-100 text-slate-600"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <div className="relative w-full max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 w-4 h-4" />
-              <input 
-                type="text"
-                placeholder="Search hazards or areas..."
-                className="w-full bg-slate-50 border-none rounded-full py-2 pl-10 pr-4 text-sm focus:ring-2 ring-teal-600"
-              />
-            </div>
-          </div>
-          <div className="flex items-center gap-6">
-            <button className="text-slate-500 hover:text-teal-600 transition-colors">
-              <Accessibility className="w-5 h-5" />
-            </button>
-            <button className="text-slate-500 hover:text-teal-600 transition-colors relative">
-              <Bell className="w-5 h-5" />
-              <span className="absolute top-0 right-0 w-2 h-2 bg-orange-500 rounded-full"></span>
-            </button>
-            <div className="flex items-center gap-3 pl-4 border-l border-slate-200">
-              <div className="w-8 h-8 rounded-full bg-teal-100 overflow-hidden border border-teal-200">
-                <img 
-                  src={auth.currentUser?.photoURL || `https://ui-avatars.com/api/?name=User&background=006d6d&color=fff`} 
-                  alt="Profile" 
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            </div>
-          </div>
-        </header>
+        <Header onMenuClick={() => setSidebarOpen(true)} title="Hazard Reporting" />
 
         {/* Main Content */}
         <main className="p-8 max-w-6xl mx-auto w-full">
@@ -204,17 +255,61 @@ export default function HazardReports() {
                       placeholder="Describe the hazard to help others navigate better..."
                     />
                     <button 
-                      onClick={() => toast.info('Voice recording started')}
-                      className="absolute bottom-6 right-6 flex items-center gap-2 bg-indigo-600 text-white px-5 py-2.5 rounded-full shadow-lg hover:bg-indigo-700 transition-all transform active:scale-95"
+                      onClick={toggleRecording}
+                      className={cn(
+                        "absolute bottom-6 right-6 flex items-center gap-2 px-5 py-2.5 rounded-full shadow-lg transition-all transform active:scale-95",
+                        isRecording ? "bg-red-500 animate-pulse" : "bg-indigo-600 hover:bg-indigo-700"
+                      )}
                     >
-                      <Mic className="w-4 h-4" />
-                      <span className="text-xs font-bold">Record Voice Note</span>
+                      {isRecording ? <Loader2 className="w-4 h-4 animate-spin" /> : <Mic className="w-4 h-4 text-white" />}
+                      <span className="text-xs font-bold text-white">
+                        {isRecording ? `Recording... ${recordingDuration}s` : 'Record Voice Note'}
+                      </span>
                     </button>
                   </div>
 
+                  {/* Evidence Preview */}
+                  {(evidence.photos.length > 0 || evidence.video || evidence.voiceNote) && (
+                    <div className="flex flex-wrap gap-4 p-4 bg-slate-50 rounded-[2rem] border border-slate-100">
+                      {evidence.photos.map((photo, idx) => (
+                        <div key={idx} className="relative w-20 h-20 rounded-2xl overflow-hidden group">
+                          <img src={photo} alt="Evidence" className="w-full h-full object-cover" />
+                          <button 
+                            onClick={() => removeEvidence('photos', idx)}
+                            className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                          >
+                            <Trash2 className="w-5 h-5 text-white" />
+                          </button>
+                        </div>
+                      ))}
+                      {evidence.video && (
+                        <div className="relative w-20 h-20 rounded-2xl overflow-hidden group bg-black">
+                          <div className="absolute inset-0 flex items-center justify-center">
+                            <Video className="w-6 h-6 text-white" />
+                          </div>
+                          <button 
+                            onClick={() => removeEvidence('video')}
+                            className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity"
+                          >
+                            <Trash2 className="w-5 h-5 text-white" />
+                          </button>
+                        </div>
+                      )}
+                      {evidence.voiceNote && (
+                        <div className="flex items-center gap-3 bg-indigo-50 px-4 py-2 rounded-2xl border border-indigo-100">
+                          <Volume2 className="w-4 h-4 text-indigo-600" />
+                          <span className="text-xs font-bold text-indigo-700">Voice Note</span>
+                          <button onClick={() => removeEvidence('voiceNote')}>
+                            <X className="w-4 h-4 text-indigo-400 hover:text-red-500" />
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <button 
-                      onClick={() => toast.info('Photo upload triggered')}
+                      onClick={() => handleFileUpload('photos')}
                       className="p-8 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 hover:bg-white hover:border-teal-500/30 transition-all group"
                     >
                       <Camera className="w-8 h-8 text-slate-400 group-hover:text-teal-600 transition-colors" />
@@ -224,7 +319,7 @@ export default function HazardReports() {
                       </div>
                     </button>
                     <button 
-                      onClick={() => toast.info('Video upload triggered')}
+                      onClick={() => handleFileUpload('video')}
                       className="p-8 bg-slate-50 border-2 border-dashed border-slate-200 rounded-[2.5rem] flex flex-col items-center justify-center gap-3 hover:bg-white hover:border-teal-500/30 transition-all group"
                     >
                       <Video className="w-8 h-8 text-slate-400 group-hover:text-teal-600 transition-colors" />
@@ -240,61 +335,112 @@ export default function HazardReports() {
 
             {/* Contextual Sidebar */}
             <div className="lg:col-span-4 space-y-6">
-              {/* Location Card */}
-              <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                <div className="flex justify-between items-center mb-4">
-                  <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                    <MapPin className="w-5 h-5 text-teal-600" />
-                    Location
-                  </h3>
-                  <button className="text-orange-600 text-xs font-bold hover:underline">Adjust</button>
-                </div>
-                <div className="h-48 rounded-[2rem] bg-slate-100 mb-4 overflow-hidden relative group">
-                  <img 
-                    src="https://picsum.photos/seed/mumbai-map/800/600" 
-                    alt="Map View" 
-                    className="w-full h-full object-cover grayscale opacity-60 group-hover:scale-110 transition-transform duration-700"
-                    referrerPolicy="no-referrer"
-                  />
-                  <div className="absolute inset-0 flex items-center justify-center">
-                    <div className="w-12 h-12 bg-orange-500 rounded-full flex items-center justify-center shadow-xl ring-4 ring-white animate-bounce">
-                      <History className="w-6 h-6 text-white" />
-                    </div>
+              {/* Community Impact & Support */}
+              <div className="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100 space-y-8">
+                <div className="flex items-center gap-4">
+                  <div className="w-12 h-12 rounded-2xl bg-teal-50 text-teal-600 flex items-center justify-center">
+                    <HeartPulse className="w-7 h-7" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-900">Community Support</h2>
+                    <p className="text-xs text-slate-400">How your report helps others</p>
                   </div>
                 </div>
-                <div className="bg-slate-50 p-4 rounded-2xl border border-slate-100">
-                  <p className="text-sm font-bold text-slate-900">{newHazard.location.address}</p>
-                  <p className="text-[10px] text-slate-400 font-medium italic mt-1">Detected within 5 meters</p>
+
+                <div className="space-y-6">
+                  <div className="p-6 bg-slate-50 rounded-[2rem] border border-slate-100">
+                    <div className="flex items-center justify-between mb-4">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Estimated Impact</span>
+                      <span className="px-3 py-1 bg-teal-100 text-teal-700 text-[10px] font-black rounded-full">HIGH</span>
+                    </div>
+                    <div className="flex items-end gap-2">
+                      <span className="text-4xl font-black text-slate-900">150+</span>
+                      <span className="text-sm font-bold text-slate-500 mb-1">users affected daily</span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-4">
+                    <h4 className="font-bold text-sm text-slate-900 px-1">Nearby Volunteers</h4>
+                    <div className="flex -space-x-3 overflow-hidden p-1">
+                      {[1, 2, 3, 4, 5].map((i) => (
+                        <div key={i} className="inline-block h-10 w-10 rounded-full ring-4 ring-white bg-slate-200 overflow-hidden">
+                          <img 
+                            src={`https://i.pravatar.cc/100?u=vol${i}`} 
+                            alt="Volunteer" 
+                            className="h-full w-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      ))}
+                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-teal-600 text-white ring-4 ring-white text-[10px] font-bold">
+                        +12
+                      </div>
+                    </div>
+                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed px-1">
+                      17 verified volunteers are currently within 500m and have been alerted to assist users near this hazard.
+                    </p>
+                  </div>
+
+                  <button 
+                    onClick={() => toast.success('Support request broadcasted to nearby volunteers')}
+                    className="w-full py-4 bg-teal-50 text-teal-700 rounded-2xl font-bold text-xs hover:bg-teal-100 transition-all flex items-center justify-center gap-2"
+                  >
+                    <ShieldAlert className="w-4 h-4" /> Request Immediate Support
+                  </button>
                 </div>
               </div>
 
-              {/* Impact Analysis */}
-              <div className="bg-teal-900 text-white p-8 rounded-[2.5rem] shadow-xl shadow-teal-900/20 relative overflow-hidden">
+              {/* Dynamic Safety Tips */}
+              <div className="bg-orange-50 p-8 rounded-[2.5rem] shadow-sm border border-orange-100 relative overflow-hidden">
                 <div className="relative z-10">
-                  <h3 className="font-bold mb-6 flex items-center gap-2 text-lg">
-                    <TrendingUp className="w-6 h-6 text-teal-400" />
-                    Impact Analysis
+                  <h3 className="font-bold mb-6 flex items-center gap-2 text-lg text-orange-900">
+                    <ShieldAlert className="w-6 h-6 text-orange-600" />
+                    Safety Tips: {HAZARD_CATEGORIES.find(c => c.id === newHazard.type)?.label}
                   </h3>
-                  <div className="space-y-5">
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-teal-100/70 font-medium">Affects Wheelchairs</span>
-                      <CheckCircle className="w-5 h-5 text-orange-400 fill-orange-400/20" />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-teal-100/70 font-medium">Visual Impairment Risk</span>
-                      <CheckCircle className="w-5 h-5 text-orange-400 fill-orange-400/20" />
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-xs text-teal-100/70 font-medium">Delayed Routes</span>
-                      <span className="text-[10px] font-bold px-2.5 py-1 bg-white/10 rounded-lg backdrop-blur-md">+4 mins</span>
-                    </div>
+                  <div className="space-y-4">
+                    {newHazard.type === 'flooding' && (
+                      <>
+                        <div className="flex gap-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
+                          <p className="text-xs text-orange-800/80 leading-relaxed">Avoid walking through moving water; even 6 inches can knock you down.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
+                          <p className="text-xs text-orange-800/80 leading-relaxed">Be aware of potential electrical hazards from submerged power lines.</p>
+                        </div>
+                      </>
+                    )}
+                    {newHazard.type === 'broken_path' && (
+                      <>
+                        <div className="flex gap-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
+                          <p className="text-xs text-orange-800/80 leading-relaxed">Use the 'Alternative Route' feature in Sahayak to bypass this section.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
+                          <p className="text-xs text-orange-800/80 leading-relaxed">If using a wheelchair, proceed with extreme caution or request volunteer assistance.</p>
+                        </div>
+                      </>
+                    )}
+                    {(!['flooding', 'broken_path'].includes(newHazard.type)) && (
+                      <>
+                        <div className="flex gap-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
+                          <p className="text-xs text-orange-800/80 leading-relaxed">Maintain a safe distance from the hazard and follow local safety signs.</p>
+                        </div>
+                        <div className="flex gap-3">
+                          <div className="w-1.5 h-1.5 rounded-full bg-orange-400 mt-1.5 shrink-0" />
+                          <p className="text-xs text-orange-800/80 leading-relaxed">Alert others nearby who might not have seen the hazard yet.</p>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <hr className="my-6 border-white/10" />
-                  <p className="text-[10px] leading-relaxed text-teal-100/50 italic">
-                    Our AI validates reports based on similar crowdsourced data to maintain high trust scores.
+                  <hr className="my-6 border-orange-200" />
+                  <p className="text-[10px] leading-relaxed text-orange-700/60 italic">
+                    Safety tips are curated by Sahayak's accessibility experts and community leaders.
                   </p>
                 </div>
-                <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-teal-400/10 rounded-full blur-3xl"></div>
+                <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-orange-200/30 rounded-full blur-3xl"></div>
               </div>
 
               {/* Actions */}

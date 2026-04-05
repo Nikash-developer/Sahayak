@@ -1,14 +1,17 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { useState, useEffect, useRef, useMemo } from 'react';
 import { useSearchParams, useLocation } from 'react-router-dom';
-import { Search, Bell, User, MapPin, Navigation, ShieldAlert, HeartPulse, MessageSquare, ChevronRight, Globe, Info, Sparkles, Map as MapIcon, Mic, Accessibility, Sun, Moon, Plus, Minus, Target, Check, Menu, ToggleLeft, ToggleRight, Eye, EyeOff, CheckCircle2, Loader2, AlertCircle, X, Coffee, Building2, Train, Star } from 'lucide-react';
+import { Search, Bell, User, MapPin, Navigation, ShieldAlert, HeartPulse, MessageSquare, ChevronRight, Globe, Info, Sparkles, Map as MapIcon, Mic, Sun, Moon, Plus, Minus, Target, Check, Menu, ToggleLeft, ToggleRight, Eye, EyeOff, CheckCircle2, Loader2, AlertCircle, X, Coffee, Building2, Train, Star } from 'lucide-react';
+import { WheelchairIcon } from '../components/WheelchairIcon';
 import Sidebar from '../components/Sidebar';
+import Header from '../components/Header';
 import MapComponent from '../components/MapComponent';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { useVoice } from '../contexts/VoiceContext';
 import { useGeolocation } from '../hooks/useGeolocation';
 import { getNearbyServices } from '../services/aiService';
+import { fetchRealRoute, geocodeLocation } from '../services/navigationService';
 
 export default function RoutePlanning() {
   const [searchParams] = useSearchParams();
@@ -37,6 +40,7 @@ export default function RoutePlanning() {
   const [foundLocations, setFoundLocations] = useState<any[]>([]);
   const [selectedLocation, setSelectedLocation] = useState<any | null>(null);
   const [isSearchingReal, setIsSearchingReal] = useState(false);
+  const [currentRoute, setCurrentRoute] = useState<[number, number][]>([]);
   const watchId = useRef<number | null>(null);
 
   const performSearch = (service: string) => {
@@ -71,46 +75,76 @@ export default function RoutePlanning() {
       icon: <MapPin className="w-4 h-4" />
     });
 
-    getNearbyServices(service, userCoords[0], userCoords[1])
-      .then(result => {
-        const locations = result.grounding.map((chunk: any, index: number) => {
-          const mapInfo = chunk.maps;
-          return {
-            id: `real-${index}`,
-            name: mapInfo?.title || `Accessible ${service}`,
-            address: mapInfo?.uri ? "View on Google Maps" : "Address details in navigation",
-            distance: "Nearby",
-            accessibility: "Verified Accessible",
-            rating: 4.5 + (Math.random() * 0.5),
-            coords: [userCoords[0] + (Math.random() - 0.5) * 0.01, userCoords[1] + (Math.random() - 0.5) * 0.01],
-            uri: mapInfo?.uri
-          };
-        });
-        
-        if (locations.length > 0) {
-          setFoundLocations(locations);
-          toast.success(`Found real ${service}s nearby!`);
-        } else {
-          const mockLocations = [
-            { id: '1', name: `Accessible ${service} A`, address: '123 Main St, Sector 18', distance: '0.4 km', accessibility: 'Highly Accessible', rating: 4.8, coords: [userCoords[0] + 0.001, userCoords[1] + 0.001] },
-            { id: '2', name: `Accessible ${service} B`, address: '456 Park Ave, Downtown', distance: '0.9 km', accessibility: 'Step-free Access', rating: 4.5, coords: [userCoords[0] + 0.002, userCoords[1] - 0.001] },
-          ];
-          setFoundLocations(mockLocations);
-          toast.info("Using estimated nearby locations.");
-        }
-      })
-      .catch(err => {
-        console.error(err);
-        toast.error("Failed to fetch real-time locations. Using offline data.");
-        const mockLocations = [
-          { id: '1', name: `Accessible ${service} A`, address: '123 Main St, Sector 18', distance: '0.4 km', accessibility: 'Highly Accessible', rating: 4.8, coords: [userCoords[0] + 0.001, userCoords[1] + 0.001] },
-        ];
-        setFoundLocations(mockLocations);
-      })
-      .finally(() => {
+    const getStartCoords = async () => {
+      if (from !== 'My Location') {
+        return await geocodeLocation(from);
+      }
+      return userCoords;
+    };
+
+    getStartCoords().then(startCoords => {
+      if (!startCoords) {
+        toast.error("Could not find starting location.");
         setIsSearchingReal(false);
         setIsCalculatingRoute(false);
-      });
+        return;
+      }
+
+      getNearbyServices(service, startCoords[0], startCoords[1])
+        .then(async (result) => {
+          const locations = result.grounding.map((chunk: any, index: number) => {
+            const mapInfo = chunk.maps;
+            return {
+              id: `real-${index}`,
+              name: mapInfo?.title || `Accessible ${service}`,
+              address: mapInfo?.uri ? "View on Google Maps" : "Address details in navigation",
+              distance: "Nearby",
+              accessibility: "Verified Accessible",
+              rating: 4.5 + (Math.random() * 0.5),
+              coords: [startCoords[0] + (Math.random() - 0.5) * 0.01, startCoords[1] + (Math.random() - 0.5) * 0.01],
+              uri: mapInfo?.uri
+            };
+          });
+          
+          if (locations.length > 0) {
+            setFoundLocations(locations);
+            toast.success(`Found real ${service}s nearby!`);
+            
+            // Automatically select the first one and fetch route
+            const firstLoc = locations[0];
+            setSelectedLocation(firstLoc);
+            setMapCenter(firstLoc.coords as [number, number]);
+            const route = await fetchRealRoute(startCoords, firstLoc.coords as [number, number]);
+            if (route) setCurrentRoute(route);
+          } else {
+            // Try geocoding the service name directly as a destination
+            const coords = await geocodeLocation(service);
+            if (coords) {
+              const loc = { id: 'geo-1', name: service, address: 'Geocoded location', distance: 'Calculated', accessibility: 'Check on arrival', rating: 5.0, coords };
+              setFoundLocations([loc]);
+              setSelectedLocation(loc);
+              setMapCenter(loc.coords as [number, number]);
+              const route = await fetchRealRoute(startCoords, loc.coords as [number, number]);
+              if (route) setCurrentRoute(route);
+            } else {
+              const mockLocations = [
+                { id: '1', name: `Accessible ${service} A`, address: '123 Main St, Sector 18', distance: '0.4 km', accessibility: 'Highly Accessible', rating: 4.8, coords: [startCoords[0] + 0.001, startCoords[1] + 0.001] },
+                { id: '2', name: `Accessible ${service} B`, address: '456 Park Ave, Downtown', distance: '0.9 km', accessibility: 'Step-free Access', rating: 4.5, coords: [startCoords[0] + 0.002, startCoords[1] - 0.001] },
+              ];
+              setFoundLocations(mockLocations);
+              toast.info("Using estimated nearby locations.");
+            }
+          }
+        })
+        .catch(err => {
+          console.error("Search error:", err);
+          toast.error("Failed to find real-time services.");
+        })
+        .finally(() => {
+          setIsSearchingReal(false);
+          setIsCalculatingRoute(false);
+        });
+    });
   };
 
   const nearbyServices = [
@@ -179,6 +213,65 @@ export default function RoutePlanning() {
       }
     };
   }, [isTracking, isNavigating]);
+
+  useEffect(() => {
+    if (userCoords && selectedLocation) {
+      fetchRealRoute(userCoords, selectedLocation.coords).then(route => {
+        if (route) setCurrentRoute(route);
+      });
+    }
+  }, [userCoords, selectedLocation]);
+
+  const calculateRoute = async () => {
+    if (!to) {
+      toast.error("Please enter a destination");
+      return;
+    }
+
+    setIsSearchingReal(true);
+    try {
+      let startCoords = userCoords;
+      if (from !== 'My Location') {
+        const coords = await geocodeLocation(from);
+        if (coords) startCoords = coords;
+        else {
+          toast.error("Could not find starting location.");
+          setIsSearchingReal(false);
+          return;
+        }
+      }
+
+      const endCoords = await geocodeLocation(to);
+
+      if (startCoords && endCoords) {
+        const route = await fetchRealRoute(startCoords, endCoords);
+        if (route) {
+          setCurrentRoute(route);
+          setMapCenter(endCoords);
+          toast.success("Route calculated!");
+          
+          // Add a temporary location for the destination
+          setSelectedLocation({
+            id: 'custom-dest',
+            name: to,
+            coords: endCoords,
+            address: 'Custom destination',
+            distance: 'Calculated',
+            rating: 5.0
+          });
+        } else {
+          toast.error("Could not find a route between these locations.");
+        }
+      } else {
+        toast.error("Could not find one or both locations.");
+      }
+    } catch (error) {
+      console.error("Error calculating route:", error);
+      toast.error("Error calculating route.");
+    } finally {
+      setIsSearchingReal(false);
+    }
+  };
 
   const handleStartNavigation = () => {
     setIsNavigating(true);
@@ -279,13 +372,6 @@ export default function RoutePlanning() {
     }
   };
 
-  const sampleRoute: [number, number][] = [
-    [40.7128, -74.0060],
-    [40.7150, -74.0080],
-    [40.7180, -74.0100],
-    [40.7200, -74.0120]
-  ];
-
   const toggleFilter = (id: string) => {
     setFilters(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id]);
   };
@@ -294,54 +380,12 @@ export default function RoutePlanning() {
     <div className="bg-[#F8F9FA] flex font-sans text-[#1A1A1A] overflow-x-hidden">
       <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <main className="flex-1 flex flex-col lg:flex-row lg:ml-64 overflow-hidden h-screen">
-        {/* Mobile Header */}
-        <header className="lg:hidden h-16 bg-white border-b border-gray-100 flex items-center justify-between px-6 shrink-0 z-20">
-          <div className="flex items-center gap-3">
-            <button 
-              onClick={() => setSidebarOpen(true)}
-              className="p-2 rounded-xl hover:bg-gray-50 text-gray-500"
-            >
-              <Menu className="w-6 h-6" />
-            </button>
-            <h1 className="font-bold text-lg">Navigation</h1>
-          </div>
-          <button
-            onClick={() => toast.info('No new notifications')}
-            className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 relative"
-          >
-            <Bell className="w-5 h-5" />
-            <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full border-2 border-white" />
-          </button>
-        </header>
+      <main className="flex-1 flex flex-col lg:ml-64 overflow-hidden h-screen relative">
+        <Header onMenuClick={() => setSidebarOpen(true)} title="Route Planning" />
 
-        {/* Left Panel - Planning */}
-        <div className="w-full lg:w-[450px] bg-white border-r border-gray-100 flex flex-col h-full overflow-y-auto">
-          <header className="hidden lg:flex p-8 border-b border-gray-50 items-center justify-between">
-            <div className="relative w-full max-w-[300px]">
-              <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400 w-4 h-4" />
-              <input
-                type="text"
-                placeholder="Search for safe routes..."
-                className="w-full pl-10 pr-4 py-3 rounded-xl bg-gray-50 border border-gray-100 focus:outline-none focus:ring-2 focus:ring-[#006D6D]/10 focus:border-[#006D6D] transition-all text-sm"
-              />
-            </div>
-            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => toast.info('Language settings coming soon')}
-                className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:text-[#006D6D] transition-colors"
-              >
-                <Globe className="w-5 h-5" />
-              </button>
-              <button 
-                onClick={() => toast.info('No new notifications')}
-                className="w-10 h-10 rounded-xl bg-gray-50 flex items-center justify-center text-gray-400 hover:text-[#006D6D] transition-colors relative"
-              >
-                <Bell className="w-5 h-5" />
-                <span className="absolute top-2.5 right-2.5 w-1.5 h-1.5 bg-red-500 rounded-full border-2 border-white" />
-              </button>
-            </div>
-          </header>
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden pt-16">
+          {/* Left Panel - Planning */}
+          <div className="w-full lg:w-[450px] bg-white border-r border-gray-100 flex flex-col h-full overflow-y-auto">
 
           <div className="p-8 flex-1 space-y-8">
             <div className="flex items-center justify-between">
@@ -481,7 +525,7 @@ export default function RoutePlanning() {
                       <div className="flex-1">
                         <h4 className="font-bold text-sm">{service.name}</h4>
                         <div className="flex items-center gap-2 mt-1">
-                          <Accessibility className="w-3 h-3 text-teal-600" />
+                          <WheelchairIcon className="w-3 h-3 text-teal-600" />
                           <span className="text-[10px] text-gray-500 font-medium">{service.accessibility}</span>
                         </div>
                       </div>
@@ -529,7 +573,7 @@ export default function RoutePlanning() {
                     onChange={(e) => setTo(e.target.value)}
                     onKeyDown={(e) => {
                       if (e.key === 'Enter') {
-                        performSearch(to);
+                        calculateRoute();
                       }
                     }}
                     placeholder="Where to?"
@@ -537,11 +581,12 @@ export default function RoutePlanning() {
                   />
                   <div className="flex items-center gap-1">
                     <button 
-                      onClick={() => performSearch(to)}
-                      className="p-1.5 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors"
+                      onClick={calculateRoute}
+                      disabled={isSearchingReal}
+                      className="p-1.5 rounded-lg text-teal-600 hover:bg-teal-50 transition-colors disabled:opacity-50"
                       title="Search"
                     >
-                      <Search className="w-4 h-4" />
+                      {isSearchingReal ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
                     </button>
                     <button 
                       onClick={() => handleVoiceInput('to')}
@@ -594,7 +639,7 @@ export default function RoutePlanning() {
               <h3 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">Priority Filters</h3>
               <div className="flex flex-wrap gap-2">
                 {[
-                  { id: 'step-free', label: 'Step-free', icon: Accessibility },
+                  { id: 'step-free', label: 'Step-free', icon: WheelchairIcon },
                   { id: 'well-lit', label: 'Well-lit', icon: Sun },
                   { id: 'safe-zones', label: 'Safe zones', icon: ShieldAlert },
                 ].map(f => (
@@ -673,7 +718,7 @@ export default function RoutePlanning() {
                       <div className="text-xs text-gray-400 mb-4">{selectedService ? '0.4' : '0.8'} miles • {selectedService ? '14:41' : '14:45'} Arrival</div>
                       <div className="flex gap-2">
                         <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-teal-50 text-[#006D6D] text-[10px] font-bold">
-                          <Accessibility className="w-3 h-3" /> Step-free
+                          <WheelchairIcon className="w-3 h-3" /> Step-free
                         </div>
                         <div className="flex items-center gap-1 px-2 py-1 rounded-md bg-orange-50 text-[#FF8C42] text-[10px] font-bold">
                           <Sun className="w-3 h-3" /> Well-lit
@@ -717,7 +762,7 @@ export default function RoutePlanning() {
           <MapComponent 
             center={mapCenter}
             zoom={14}
-            route={sampleRoute}
+            route={currentRoute}
             userLocation={userLocation}
             onMapClick={handleMapClick}
             selectedMarkerId={selectedService}
@@ -1004,6 +1049,7 @@ export default function RoutePlanning() {
               </div>
             </div>
           </div>
+        </div>
         </div>
       </main>
     </div>

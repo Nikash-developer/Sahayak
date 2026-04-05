@@ -1,5 +1,6 @@
 import { NavLink, useNavigate } from 'react-router-dom';
-import { Home, Navigation, Accessibility, AlertTriangle, User, LogOut } from 'lucide-react';
+import { Home, Navigation, AlertTriangle, User, LogOut } from 'lucide-react';
+import { WheelchairIcon } from './WheelchairIcon';
 import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { toast } from 'sonner';
@@ -46,7 +47,7 @@ export default function Sidebar({ isOpen, onClose }: SidebarProps) {
   const navItems = [
     { to: '/dashboard', icon: Home, label: 'Home' },
     { to: '/route-planning', icon: Navigation, label: 'Navigation' },
-    { to: '/accessibility', icon: Accessibility, label: 'Accessibility' },
+    { to: '/accessibility', icon: WheelchairIcon, label: 'Accessibility' },
     { to: '/hazard-reports', icon: AlertTriangle, label: 'Hazard Report' },
     { to: '/settings', icon: User, label: 'Profile' },
   ];

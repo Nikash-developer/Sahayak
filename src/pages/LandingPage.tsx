@@ -2,7 +2,7 @@ import { motion, AnimatePresence } from 'motion/react';
 import { useNavigate } from 'react-router-dom';
 import React, { useState, useEffect, useRef } from 'react';
 import { 
-  ArrowRight, Play, Eye, Ear, Accessibility, Brain, User, Info, Map, 
+  ArrowRight, Play, Eye, Ear, Brain, User, Info, Map, 
   ShieldAlert, Radio, Users, History, WifiOff, MessageSquare, 
   Bell, Globe, ChevronDown, Type, Volume2, TriangleAlert, 
   Download, HelpCircle, Share2, Building2, UserRound, Search,
@@ -11,6 +11,7 @@ import {
   HeartPulse, Shield, User as UserIcon, Check, X, Sparkles, Navigation,
   Send
 } from 'lucide-react';
+import { WheelchairIcon } from '../components/WheelchairIcon';
 import { cn } from '../lib/utils';
 import { toast } from 'sonner';
 import { GoogleGenAI } from "@google/genai";
@@ -39,7 +40,7 @@ export default function LandingPage() {
     { icon: TriangleAlert, title: 'Hazard Detection', desc: 'Real-time alerts for construction and broken elevators.', detail: 'Crowdsourced and sensor-based data provides instant notifications about temporary obstacles, ensuring you never get stuck at a broken elevator or blocked sidewalk.', color: 'bg-orange-50' },
     { icon: UserRound, title: 'Audio Wayfinding', desc: '3D spatial instructions for complex transit hubs.', detail: 'Using high-precision indoor positioning, we provide binaural audio cues that guide you through complex stations and buildings with pinpoint accuracy.', color: 'bg-blue-50' },
     { icon: Users, title: 'Community Data', desc: 'Verified reports from fellow users on actual accessibility.', detail: 'Trust the lived experience of thousands. Our community verifies accessibility features in real-time, providing photos and detailed notes on every location.', color: 'bg-purple-50' },
-    { icon: Accessibility, title: 'Live Hub Status', desc: 'Monitoring elevators and ramps at every station.', detail: 'Direct integration with transit authority APIs gives you live status updates on elevators, escalators, and accessible gates before you even arrive.', color: 'bg-green-50' },
+    { icon: WheelchairIcon, title: 'Live Hub Status', desc: 'Monitoring elevators and ramps at every station.', detail: 'Direct integration with transit authority APIs gives you live status updates on elevators, escalators, and accessible gates before you even arrive.', color: 'bg-green-50' },
     { icon: History, title: 'Safe History', desc: 'Recall your most trusted routes with privacy-first data.', detail: 'Your data stays on your device. Easily access your most frequent and trusted routes without compromising your location privacy.', color: 'bg-slate-50' },
     { icon: Download, title: 'Offline Mode', desc: 'Navigate confidently even with zero network connectivity.', detail: 'Download entire city maps and accessibility databases to your device, ensuring full navigation capabilities even in underground stations or dead zones.', color: 'bg-indigo-50' },
     { icon: HelpCircle, title: 'AI Assistant', desc: 'Voice-activated help for complex spatial queries.', detail: 'Our natural language AI understands complex requests like "Find me a route with no stairs and a quiet waiting area," providing instant, tailored guidance.', color: 'bg-pink-50' },
@@ -130,7 +131,7 @@ export default function LandingPage() {
   };
 
   const interfaceFeature = {
-    icon: Accessibility,
+    icon: WheelchairIcon,
     title: 'Interface Control',
     desc: 'Adapt the experience to your specific needs.',
     detail: 'Customize every aspect of the app—from high-contrast themes and screen reader optimization to gesture-based navigation and simplified layouts for cognitive ease.'
@@ -491,7 +492,7 @@ export default function LandingPage() {
                 whileHover={{ scale: 1.2, rotate: 15, backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
                 className="absolute top-12 right-12 p-5 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 text-white cursor-pointer transition-colors z-20"
               >
-                <Accessibility className="w-7 h-7" />
+                <WheelchairIcon className="w-7 h-7" />
               </motion.div>
               <motion.div 
                 whileHover={{ scale: 1.2, rotate: -15, backgroundColor: 'rgba(255, 255, 255, 0.2)' }}
@@ -510,7 +511,7 @@ export default function LandingPage() {
             >
               <div className="flex items-center gap-4 mb-4">
                 <div className="w-12 h-12 rounded-2xl bg-[#006D6D]/10 flex items-center justify-center text-[#006D6D]">
-                  <Accessibility className="w-7 h-7" />
+                  <WheelchairIcon className="w-7 h-7" />
                 </div>
                 <div>
                   <span className="font-bold text-on-surface block">Clear Path Ahead</span>
@@ -583,7 +584,7 @@ export default function LandingPage() {
           >
             <div className="flex items-center gap-6">
               <div className="w-16 h-16 rounded-3xl bg-teal-50 flex items-center justify-center text-[#006D6D] group-hover:bg-[#006D6D] group-hover:text-white transition-all duration-300">
-                <Accessibility className="w-8 h-8" />
+                <WheelchairIcon className="w-8 h-8" />
               </div>
               <div>
                 <h3 className="font-bold text-2xl mb-1">Interface Control</h3>
